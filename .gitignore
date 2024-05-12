@@ -1,0 +1,12 @@
+#IDE
+.vscode/
+.idea/
+#local
+node_modules/
+dist/
+coverage/
+*.tgz
+#secrets
+*.env
+!example.env
+dl*/

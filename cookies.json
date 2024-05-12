@@ -1,0 +1,12 @@
+[
+	{
+		"name": "cf_clearance",
+		"value": "NaLb8LpisDIanaNTwjuT776ta.sKviQxcn4NdZ55c0M-1715483024-1.0.1.1-P3YAQTnsZdmKCAxr401SBsbUuxWk4boXUeBLn1DFeh4.K_dbSOXkZpLng4LI_OMBwd0ULkavM4_S8G3ZNIRdIw",
+		"domain": ".sushiscan.net",
+		"path": "/",
+		"expires": 1747019027,
+		"httpOnly": true,
+		"secure": true,
+		"sameSite": "None"
+	}
+]
