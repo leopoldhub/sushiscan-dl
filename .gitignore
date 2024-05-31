@@ -10,3 +10,4 @@ coverage/
 *.env
 !example.env
 dl*/
+cookies.json
