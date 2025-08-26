@@ -57,17 +57,40 @@ async function preloadCookies(url: string, existingCookies: Cookie[]) {
   return cookies;
 }
 
+async function downloadWithRetry(
+  context: any,
+  imageUrl: string,
+  folder: string,
+  name: string,
+  bar1: any,
+  destinationFolder: string
+): Promise<void> {
+  while (true) {
+    try {
+      const response = await context.request.get(imageUrl);
+      if (response.ok()) {
+        const body = await response.body();
+        fsExtra.outputFileSync(`${destinationFolder}/${folder}/${name}.jpg`, body);
+        bar1.increment();
+        return;
+      } else {
+        throw new Error(`HTTP status ${response.status()}`);
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to download ${imageUrl}: ${errorMessage}. Retrying in 10s...`);
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+    }
+  }
+}
+
 async function downloadingSushiscanPageImages(url: string, destinationFolder: string) {
   console.log('preloading cookies');
   const preloadedCookies = await preloadCookies(url, loadSavedCookies());
   console.log('saving loaded cookies');
   saveCookies(preloadedCookies);
 
-  const browser = await firefox.launch({
-    // headless: false,
-    // args: ['-devtools'],
-  });
-
+  const browser = await firefox.launch();
   const context = await browser.newContext();
   await context.addCookies(preloadedCookies);
   const page = await context.newPage();
@@ -91,25 +114,27 @@ async function downloadingSushiscanPageImages(url: string, destinationFolder: st
     },
     cliProgress.Presets.shades_classic
   );
+
   const urlPassed: string[] = [];
-  let taille: number;
+  const downloadPromises: Promise<void>[] = [];
+  let taille = 0;
+
   page.on('response', async (response) => {
-    if (response.ok() && response.url() == (url.endsWith('/') ? url : url + '/')) {
+    if (response.ok() && response.url() === (url.endsWith('/') ? url : url + '/')) {
       const [_, images] = (await response.text()).match(/"images":\s?\[([^\]]*)\]/) as RegExpMatchArray;
       taille = images.split(',').length;
       bar1.start(taille, 0);
     }
+
     if (response.ok() && response.url().match(/wp-content\/upload.+-\d+\.\w+$/) && !urlPassed.includes(response.url())) {
-      urlPassed.push(response.url());
-      const [_, folder, name] = response.url().match(/\/([^/-]+)-(\d+)\.\w+$/) as RegExpMatchArray;
-      fsExtra.outputFileSync(`${destinationFolder}/${folder}/${name}.jpg`, await response.body());
-      bar1.increment();
-      if (urlPassed.length === taille) {
-        bar1.stop();
-        console.log('\nDownload complete!');
-      }
+      const imageUrl = response.url();
+      urlPassed.push(imageUrl);
+      const [_, folder, name] = imageUrl.match(/\/([^/-]+)-(\d+)\.\w+$/) as RegExpMatchArray;
+
+      downloadPromises.push(downloadWithRetry(context, imageUrl, folder, name, bar1, destinationFolder));
     }
   });
+
   await page.goto(url, {
     waitUntil: 'networkidle',
     timeout: 120000,
@@ -122,8 +147,13 @@ async function downloadingSushiscanPageImages(url: string, destinationFolder: st
       .then(() => l.evaluate((img: any) => img.scrollIntoView()))
       .then(() => page.waitForLoadState('networkidle'));
   }, Promise.resolve());
+
   await page.waitForLoadState('networkidle');
-  console.log('End of treatment');
+  console.log('\nWaiting for all downloads to complete...');
+  await Promise.all(downloadPromises);
+  console.log('\nDownload complete!');
+  bar1.stop();
+
   await browser.close();
 }
 
@@ -133,7 +163,7 @@ if (processArgs['h'] || processArgs['help']) {
   console.log('-h, --help : help');
   console.log('-----------------');
   console.log('<sushiscan-url> : Sushiscan url to download');
-  console.log('-d : destination folder (optional');
+  console.log('-d : destination folder (optional)');
 }
 const destinationFolder: string = processArgs['d'] || './dl';
 fsExtra.ensureDirSync(destinationFolder);
