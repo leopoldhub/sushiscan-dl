@@ -38,6 +38,6 @@
     "fs": "^0.0.1-security",
     "fs-extra": "^11.2.0",
     "minimist": "^1.2.8",
-    "playwright": "^1.44.0"
+    "playwright": "^1.55.1"
   }
 }
